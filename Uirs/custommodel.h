@@ -10,7 +10,7 @@ private:
     const long double nu{398600.436e9}; //гравитационный параметр Земли [km^3 * s^-1]
     long double m {2.0};                //масса тела [kg]
     long double r{0.4};                 //радиус тела [m]
-    long double R{6371000};             //радус Земли [m]
+    long double R{6371000.0};             //радус Земли [m]
     matrix *perturbation;               //матрица возмущений (ветер) 3х3 [m/s]
 public:
     satellite();

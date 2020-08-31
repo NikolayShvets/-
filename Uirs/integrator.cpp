@@ -1,4 +1,8 @@
 #include "integrator.h"
+#define max(a, b) ( ( (a) > (b) ) ? (a) : (b) )
+#define min(a, b) ( ( (a) < (b) ) ? (a) : (b) )
+
+
 
 eulerIntegrator::eulerIntegrator():IIntegrator(){
 
@@ -27,34 +31,27 @@ void eulerIntegrator::run(IMathModel *model)
     }
 }
 
+const long double dormandPrinceIntgrator::c[7] = { 0, 1./5, 3./10, 4./5, 8./9, 1., 1. };
+const long double dormandPrinceIntgrator::a[7][6] = {
+    { 0. },
+    { 1./5 },
+    { 3./40, 9./40 },
+    { 44./45, -56./15, 32./9 },
+    { 19372./6561, -25360./2187, 64448./6561, -212./729 },
+    { 9017./3168, -355./33, 46732./5247, 49./176, -5103./18656 },
+    { 35./384, 0., 500./1113, 125./192, -2187./6784, 11./84 }
+};
+const long double dormandPrinceIntgrator::b1[7] = { 35./384, 0., 500./1113, 125./192, -2187./6784, 11./84, 0 };
+const long double dormandPrinceIntgrator::b2[7] = { 5179./57600, 0., 7571./16695, 393./640, -92097./339200, 187./2100, 1./40 };
+
 
 dormandPrinceIntgrator::dormandPrinceIntgrator(): IIntegrator(){
-    b1.resize(7);
-    b2.resize(7);
-    c.resize(7);
-    K.resize(7);
-    a.resize(7,6);
-
-    b1[0] = 35./384;     b1[1] = 0.0; b1[2] = 500./1113;   b1[3] = 125./192; b1[4] = -2187./6784;    b1[5] = 11./84;    b1[6] = 0.0;
-
-    b2[0] = 5179./57600; b2[1] = 0.0; b2[2] = 7571./16695; b2[3] = 393./640; b2[4] = -92097./339200; b2[5] = 187./2100; b2[6] = 1./40;
-
-    c[0] = 0.0;          c[1] = 3.0;  c[2] = 3./10 ;       c[3] = 4./5;      c[4] = 8./9;            c[5] = 1.0 ;       c[6] = 1.0;
-
-    a(0,0) = 0.0;         a(0,1) = 0.0;          a(0,2) = 0.0;           a(0,3) = 0.0;         a(0,4) = 0.0;          a(0,5) = 0.0;
-    a(1,0) = 1./5;        a(1,1) = 0.0;          a(1,2) = 0.0;           a(1,3) = 0.0;         a(1,4) = 0.0;          a(1,5) = 0.0;
-    a(2,0) = 3./40;       a(2,1) = 9./40;        a(2,2) = 0.0;           a(2,3) = 0.0;         a(2,4) = 0.0;          a(2,5) = 0.0;
-    a(3,0) = 44./45;      a(3,1) = -56./15;      a(3,2) = 32./9;         a(3,3) = 0.0;         a(3,4) = 0.0;          a(3,5) = 0.0;
-    a(4,0) = 19372./6561; a(4,1) = -25360./2187; a(4,2) = 64448./6561;   a(4,3) = -212./729;   a(4,4) = 0.0;          a(4,5) = 0.0;
-    a(5,0) = 9017./3168;  a(5,1) = -355./33;     a(5,2) = 46732./5247;   a(5,3) = 49./176;     a(5,4) = -5103./18656; a(5,5) = 0.0;
-    a(6,0) = 35./384;     a(6,1) = 0.0;          a(6,2) = 500./1113;     a(6,3) = 125./192;    a(6,4) = -2187./6784;  a(6,5) = 11./84;
-
     zero = simpleAlgorithms::mZero();
 }
 
 void dormandPrinceIntgrator::run(IMathModel * model)
 {
-    std::ofstream file;
+    /*std::ofstream file;
     file.open("results.txt");
     long double
             t = model->getT_st(),
@@ -131,5 +128,87 @@ void dormandPrinceIntgrator::run(IMathModel * model)
         }
         X = X1;
         t += h;
+    }*/
+    std::ofstream file;
+    file.open("results.txt");
+    long double
+                t = model->getT_st(),
+                t_out = t,
+                t1 = model->getT_fin(),
+                h,
+                h_new = model->getSampIncrement(),
+                e = 0;
+
+    vector
+            X = model->getInitialConditions(),
+            X1( X.size() ),
+            X2( X.size() ),
+            Xout ( X.size() ),
+            Y( X.size() );
+    model->prepareResult();
+    for ( int j = 7; j > 0; --j, K[j].resize( X.size() ) );
+    int N = 0;
+    while ( t < t1 )
+    {
+        h = h_new;
+        for ( int j = 0; j < 7; j++ )
+        {
+            for ( int k = X.size()-1; k >= 0; k-- )
+            {
+                Y[k] = X[k];
+                for ( int s = 0; s < j; s++ )
+                {
+                    Y[k] += K[s][k] * a[j][s] * h;
+                }
+            }
+           model->getRP( Y, t + c[j] * h, K[j] );
+        }
+        e = 0;
+        for ( int k = X.size()-1; k >= 0; k-- )
+        {
+            X1[k] = X2[k] = X[k];
+            for ( int j = 0; j < 7; j++ )
+            {
+                X1[k] += K[j][k] * b1[j] * h;
+                X2[k] += K[j][k] * b2[j] * h;
+            }
+            e += pow( h * (X1[k] - X2[k]) / max( max( fabsl(X[k]), fabsl(X1[k]) ), max((long double)1e-5, 2*u/eps) ) , 2 );
+        }
+        e = sqrtl( e / X.size() );
+        h_new = h / max( 0.1, min( 5., pow(e / eps, 0.2)/0.9 ) );
+
+        if ( e > eps )
+            continue;
+
+        while ( (t_out < t + h) && (t_out <= t1) )
+        {
+            long double l_ldTheta = (t_out - t)/h,
+                        b[6];
+
+            b[0] = l_ldTheta * ( 1 + l_ldTheta*(-1337./480. + l_ldTheta*(1039./360. + l_ldTheta*(-1163./1152.))));
+            b[1] = 0;
+            b[2] = 100. * pow(l_ldTheta, 2) * (1054./9275. + l_ldTheta*(-4682./27825. + l_ldTheta*(379./5565.)))/3.;
+            b[3] = -5. * pow(l_ldTheta, 2) * (27./40. + l_ldTheta*(-9./5. + l_ldTheta*(83./96.)))/2.;
+            b[4] = 18225. * pow(l_ldTheta, 2) * (-3./250. + l_ldTheta*(22./375. + l_ldTheta*(-37./600.)))/848.;
+            b[5] = -22. * pow(l_ldTheta, 2) * (-3./10. + l_ldTheta*(29./30. + l_ldTheta*(-17./24.)))/7.;
+
+            for ( int k = X.size()-1; k >= 0; k-- )
+            {
+                long double l_ldSum  = 0;
+                for ( int j = 5; j >= 0; j-- )
+                    l_ldSum += b[j] * K[j][k];
+                Xout[k] = X[k] + h * l_ldSum;
+            }
+
+            model->addResult( Xout, t_out );
+            for(int i = 0; i < Xout.size(); i++){
+                file<<Xout[i]<<"|";
+            }
+            file<<t_out<<std::endl;
+            t_out += model->getSampIncrement();
+        }
+        X = X1;
+        t += h;
+        N++;
     }
 }

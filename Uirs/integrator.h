@@ -27,13 +27,12 @@ public:
 class dormandPrinceIntgrator : public IIntegrator
 {
 private:
-    vector c, b1, b2;
-    matrix a;
-    std::vector<vector> K;
-    long double zero;
-public:
-    dormandPrinceIntgrator();
-    void run(IMathModel *model);
+        static const long double c[7], a[7][6], b1[7], b2[7];
+        vector K[7];
+        long double u, zero;
+    public:
+        dormandPrinceIntgrator();
+        void run(IMathModel* Model);
 };
 
 #endif // IINTQRATOR_H
